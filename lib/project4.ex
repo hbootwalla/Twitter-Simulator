@@ -1,10 +1,11 @@
 defmodule ClientState do
-  
-  def start_link do
-    GenServer.start_link(__MODULE__, :ok, name: :Client_State);
+  use GenServer
+
+  def start_link() do
+    GenServer.start_link(__MODULE__, []);
   end
 
-  def init(:ok) do
+  def init(_) do
     {:ok, %{username: '', password: '', tweets: [], followers: [], following: []}}
   end
 
@@ -36,10 +37,6 @@ defmodule ClientState do
     {:reply, true, Map.put(state, :password, password)}
   end
 
-  def handle_call({:set_all_tweets, tweets}, _from, state) do
-    {:reply, true, Map.put(state, :tweets, tweets)}
-  end
-
   def handle_call({:set_all_followers, followers}, _from, state) do
     {:reply, true, Map.put(state, :followers, followers)}
   end
@@ -48,26 +45,38 @@ defmodule ClientState do
     {:reply, true, Map.put(state, :following, following)}
   end
 
+  def handle_cast({:set_all_tweets, tweets}, state) do
+    IO.inspect tweets;
+    {:noreply, Map.put(state, :tweets, tweets)}
+  end
+
+  def handle_cast({:set_tweet, tweet}, state) do
+    tList = Map.get(state, :tweets)
+    tList = [tweet]  ++ tList;
+    {:noreply, Map.put(state, :tweets, tList)}
+  end
+
 end
 
 defmodule TwitterClientSimulator do
-  def register_user(sname,pid, c_pid, username, password) do
+  def register_user(sname, gen_pid, c_pid, username, password) do
     response = GenServer.call({:Twitter_Server, sname}, {:add_user, c_pid, username, password}, :infinity);
     if response === true do
-      GenServer.call(pid, {:set_username, username});
-      GenServer.call(pid, {:set_password, password});
+      GenServer.call(gen_pid, {:set_username, username});
+      GenServer.call(gen_pid, {:set_password, password});
       {:ok}
     else  
       {:not_ok, "User Handle Exists. Try Again."}
     end
   end
 
-  def login_user(sname, pid,c_pid, username, password) do
+  def login_user(sname, c_pid, gen_pid, username, password) do
     response = GenServer.call({:Twitter_Server, sname}, {:login_user, c_pid, username, password}, :infinity);
+    GenServer.cast({:Twitter_Server, sname}, {:get_all_tweets, c_pid, gen_pid, username, password});
     case response do
-    :logged_in ->
-      GenServer.call(pid, {:set_username, username});
-      GenServer.call(pid, {:set_password, password});
+      :logged_in ->
+      GenServer.call(gen_pid, {:set_username, username});
+      GenServer.call(gen_pid, {:set_password, password});
       {:ok}
     :unregistered ->
       {:not_ok, "Username is invalid. Try Again"}
@@ -76,13 +85,13 @@ defmodule TwitterClientSimulator do
     end
   end
 
-  def logout_user(sname, pid, c_pid) do
+  def logout_user(sname, pid) do
     username = GenServer.call(pid, {:get_username});
     password = GenServer.call(pid, {:get_password});
     if(username === '' || password === '') do
       {:not_ok, "Logout Invalid at this stage"}
     else
-      response = GenServer.call({:Twitter_Server, sname}, {:logout_user, c_pid, username, password}, :infinity);
+      response = GenServer.call({:Twitter_Server, sname}, {:logout_user, username, password}, :infinity);
       if response === true do
         GenServer.call(pid, {:set_username, ''});
         GenServer.call(pid, {:set_password, ''});
@@ -103,12 +112,12 @@ defmodule TwitterClientSimulator do
     end
   end
 
-  def addTweet(sname, pid, tweetText) do
-    username = GenServer.call(pid, {:get_username});
+  def addTweet(sname, gen_pid, c_pid, tweetText) do
+    username = GenServer.call(gen_pid, {:get_username});
     if(username === '') do
       {:not_ok, "User Not Logged In"}
     else
-      GenServer.cast({:Twitter_Server, sname}, {:handle_tweet, {username, tweetText}});
+      GenServer.cast({:Twitter_Server, sname}, {:handle_tweet, username, gen_pid, c_pid,  tweetText});
       {:ok}
     end
   end
@@ -143,138 +152,77 @@ defmodule TwitterClientSimulator do
     end
   end
 
-  def testCode(sname, c_pid) do
-    {:ok, pid} = ClientState.start_link
+  def retweetToSubscribers(sname, gen_pid) do
+    username = GenServer.call(gen_pid, {:get_username});
+    if(username === '') do
+      {:not_ok, "User Not Logged In"}
+    else
+      GenServer.cast({:Twitter_Server, sname}, {:retweet, username});
+      {:ok}
+    end
+  end
 
-    register_user(sname, pid, c_pid, "huz1","sis");
-    logout_user(sname, pid);
 
-    register_user(sname,pid, c_pid, "huz2","sis");
-    logout_user(sname, pid);
+  def testCode(sname, uname, c_pid) do
+    {:ok, gen_pid} = ClientState.start_link
 
-    register_user(sname,pid, c_pid, "huz3","sis");
-    logout_user(sname, pid);
+    register_user(sname, gen_pid, c_pid, uname ,"sis");
+    case uname do
+      "huz1" ->
+        IO.puts "huz1"
+      #Process.sleep(100);
+      addTweet(sname, gen_pid, c_pid, "Hello, #supposedly");
+      addTweet(sname, gen_pid, c_pid, "Goodbye, #supposedly");
+      
+      subscribeToUser(sname, gen_pid, "huz2");
+      
+      #logout_user(sname, pid);
+      # login_user(sname, c_pid, gen_pid, "huz1", "sis");
+      # addTweet(sname, gen_pid, c_pid, "@huz2 is my friend also okay??!, #supposedlyAgain");
+      # login_user(sname,  c_pid, gen_pid, "huz1", "sis");
+    "huz2" -> 
+      IO.puts "huz2"
+      Process.sleep(1000);
+      #addTweet(sname, pid, "Hello, @huz1 is Hussain");
+      retweetToSubscribers(sname, gen_pid);
+    "huz3" ->
+      # logout_user(sname, gen_pid);
+      # Process.sleep(5000)
+      # login_user(sname, c_pid, gen_pid, "huz3","sis");
+      subscribeToUser(sname, gen_pid, "huz2");
+    end
 
-    register_user(sname,pid, c_pid, "huz4","sis");
-    logout_user(sname, pid);
-
-    #IO.inspect register_user(sname,pid, "huz","sis");
-    login_user(sname,pid, c_pid, "huz1","sis");
-    #IO.inspect login_user(sname,pid, "hu","sis");
-    #IO.inspect login_user(sname,pid, "huz","si1s");
-    addTweet(sname, pid, "@HuzInBoots mention you @huz2 in a comment. #LiveLife1");
-    addTweet(sname, pid, "@Tazo mention you @HuzInBoots in a comment. #LiveLife2");
-    # IO.inspect logout_user(sname, pid);
-
-    # IO.inspect register_user(sname,pid, "huz2","sis");
-
-    # IO.inspect addTweet(sname, pid, "@huz1 mention you @hb1 in a comment. #LiveLife2");
-    IO.inspect getAllTweets(sname, pid);
-    # IO.inspect logout_user(sname, pid);
-
-    # IO.inspect login_user(sname,pid, "huz1","sis");
-    # IO.inspect addTweet(sname, pid, "@huz1 mention you @huz2 in a comment. #LiveLife3");
-    # IO.inspect getAllTweets(sname, pid);
-
-    login_user(sname,pid, c_pid, "huz1","sis");
-    subscribeToUser(sname,pid, "huz2");
-    subscribeToUser(sname,pid, "huz3");
-    logout_user(sname, pid);
-
-    login_user(sname,pid, c_pid, "huz3","sis");
-    subscribeToUser(sname,pid, "huz4");
-    # logout_user(sname, pid);
-
-    login_user(sname,pid, c_pid, "huz2","sis");
-    subscribeToUser(sname,pid, "huz3");
-    logout_user(sname, pid);
-
-    login_user(sname,pid, c_pid,"huz1","sis");
-    IO.inspect getAllFollowers(sname,pid);
-    IO.inspect getAllFollowing(sname,pid);
-    logout_user(sname, pid);
-
-    login_user(sname,pid, "huz3","sis");
-    IO.inspect getAllFollowers(sname,pid);
-    IO.inspect getAllFollowing(sname,pid);
-    logout_user(sname, pid);
+    # if uname === "huz1" do
+    #   addTweet(sname, gen_pid, c_pid, "@huz2 is my friend, #supposedly");
+    # else
+    #   Process.sleep(1000);
+    # end
 
   end
 
   def printTweets do
     receive do
-      {:print_tweet, tweet} -> IO.puts tweet; 
+      {:print_tweet, username, tweet} -> IO.puts "** #{username} ** #{tweet}"; 
+      {:get_all_tweets, g_pid, tweetList} -> GenServer.cast(g_pid, {:set_all_tweets, tweetList});
+      {:add_tweet,g_pid, tweetId, tweetText} -> GenServer.cast(g_pid, {:set_tweet, {tweetId, tweetText}});
     end
     printTweets
   end
 
-  def simulateClients(count) do
+  def simulateClients(sname, count) do
     if count > 0 do
-        Node.spawn_link(Node.self, fn -> 
-        c_pid = spawn(fn -> printTweets end);
-        testCode(sname, c_pid)
-      end);
+        spawn(fn -> 
+          c_pid = spawn(fn -> printTweets end);
+          uname = "huz#{count}";
+          testCode(sname, uname, c_pid) end);
+      simulateClients(sname, count - 1)
     end
   end
-
-
 
 end
 
 defmodule Project4.CLI do
-  
-  def registerNewUser(sname) do
-    username = IO.gets "Enter username: ";
-    password = IO.gets "Enter password: ";
-    response = GenServer.call({:Twitter_Server, sname}, {:add_user, username, password});
-    if(response == false) do
-      IO.puts "User already registered. Try Again."; registerNewUser(sname);
-    else
-      user_window(sname);
-    end
-  end
-
-  def loginUser(sname) do
-    username = IO.gets "Enter username: ";
-    password = IO.gets "Enter password: ";
-    response = GenServer.call({:Twitter_Server, sname}, {:login_user, username, password});
-    case response do
-     :unregistered ->
-      IO.puts "User not registered. Try Again."; main_window(sname);
-    :incorrect_password ->
-      IO.puts "Incorrect Password. Try Again."; loginUser(sname);
-    _ ->
-      user_window(sname);
-    end
-  end
-
-  def user_window(sname) do
-    IO.puts "1. Send a Tweet"
-    IO.puts "2. Subscribe to a User"
-    IO.puts "3. Retweet"
-    IO.puts "4. Query a Tweet"
-    choice = IO.gets "Enter choice: ";
-  end
-
-
-
-  def main_window(sname) do
-    IO.puts "1. Register New User";
-    IO.puts "2. Login";
-    result = (IO.gets "Choose one of the above options: " |> IO.chardata_to_string);
-    result = IO.chardata_to_string(result);
-    case result do
-      "1\n" -> registerNewUser(sname);
-      "2\n" -> loginUser(sname); 
-    end
-  end
-
-  # def keepAlive() do
-  #   keepAlive()
-  # end
-
-  
-
+   
   def main(args \\ []) do
       [choice, count] = args
       if(choice == "0") do
@@ -287,9 +235,7 @@ defmodule Project4.CLI do
         sname = String.to_atom("twitterServer@192.168.56.1")
         IO.inspect Node.connect(sname);
         IO.inspect sname
-        #main_window(sname);
-        TwitterClientSimulator.simulateClients(sname, count)
-        
+        TwitterClientSimulator.simulateClients(sname, String.to_integer count)
       end
       :timer.sleep(:infinity)
       

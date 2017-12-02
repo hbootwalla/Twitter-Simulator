@@ -4,7 +4,7 @@ defmodule DatabaseHandler do
         insertTweetInUserTable(user_tablename, user, tweetId);
     end
 
-    def insertTweetInUserTable(tablename, user, tweetId) do
+    def insertTweetInUserTable(user_tablename, user, tweetId) do
         tweets = :ets.lookup(user_tablename, user)
         if tweets === [] do
             :ets.insert(user_tablename, {user, [tweetId]})
@@ -44,11 +44,12 @@ defmodule DatabaseHandler do
 
     def getUserPidByName(tablename, username) do
         userpid = :ets.lookup(tablename, username)
+        IO.inspect userpid
         if userpid === [] do
             nil
         else
             [{username, pid}] = userpid
-            userpid
+            pid
         end
     end
 
@@ -56,8 +57,17 @@ defmodule DatabaseHandler do
         :ets.insert(tablename, {username, pid})
     end
 
-    def getAllTweetsByUser(tablename, user) do
-        :ets.match(tablename, {:"_", user, :"$1"});
+    def getAllTweetsByUser(user_tablename, tweet_table, user) do
+        # :ets.match(tablename, {:"_", user, :"$1"});
+        tweets = :ets.lookup(user_tablename, user)
+        if tweets === [] do
+            []
+        else
+            [{user, tweetList}] = tweets
+            tweetList
+            Enum.map(tweetList, fn tweetId -> {tweetId, getTweetById(tweet_table, tweetId)}  end)
+        end
+        
     end
 
     def getAllTweetsByHandle(tablename, handle) do
@@ -107,8 +117,8 @@ defmodule DatabaseHandler do
         if list === [] do
             []
         else
-            [{u, list}] = list
-            list
+            [{u, l}] = list
+            l
         end
     end
 
@@ -122,6 +132,9 @@ defmodule DatabaseHandler do
         end
     end
 
-    def insertUserInto
+    def getRandomTweet(tablename) do
+        tweets = :ets.match(tablename, {:"$1", :"$2"})
+        Enum.random(tweets)
+    end
 
 end
