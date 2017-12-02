@@ -2,14 +2,7 @@ defmodule TwitterServer do
     use GenServer
 
     def init(:ok) do
-        :ets.new(:user_pid_table, [:set, :protected, :named_table]);
-        :ets.new(:user_tweet_table, [:set, :protected, :named_table]);
-        :ets.new(:user_table, [:set, :protected, :named_table]);
-        :ets.new(:tweet_table, [:set, :protected, :named_table]);
-        :ets.new(:handle_table, [:set, :protected, :named_table]);
-        :ets.new(:hashtag_table, [:set, :protected, :named_table]);
-        :ets.new(:following_table, [:set, :protected, :named_table]);
-        :ets.new(:follower_table, [:set, :protected, :named_table]);
+        DatabaseHandler.init();
         {:ok, %{tweetCount: 0}}
     end
 
@@ -23,13 +16,13 @@ defmodule TwitterServer do
 
     def handle_call({:add_user, c_pid, username, password}, _from , state) do
         returnValue = :ets.insert_new(:user_table, {username, password});
-        DatabaseHandler.setUserPidByName(:user_pid_table, username, c_pid)
+        DatabaseHandler.setUserPidByName(username, c_pid)
         {:reply, returnValue, state}
     end
 
     def handle_call({:login_user, c_pid, username, password}, _from , state) do
         returnValue = :ets.lookup(:user_table, username);
-        DatabaseHandler.setUserPidByName(:user_pid_table, username, c_pid)
+        DatabaseHandler.setUserPidByName(username, c_pid)
         if(returnValue == []) do
             {:reply, :unregistered, state}
         else
@@ -43,7 +36,7 @@ defmodule TwitterServer do
     end
 
     def handle_call({:logout_user, username, password}, _from , state) do
-        DatabaseHandler.setUserPidByName(:user_pid_table, username, nil)
+        DatabaseHandler.setUserPidByName(username, nil)
         {:reply, true, state}
     end
 
@@ -53,12 +46,12 @@ defmodule TwitterServer do
     # end
 
     def handle_call({:get_all_following, user}, _from ,state) do
-        followingList = DatabaseHandler.getAllFollowing(:following_table, user)
+        followingList = DatabaseHandler.getAllFollowing(user)
         {:reply, followingList, state}
     end
 
     def handle_call({:get_all_followers, user}, _from ,state) do
-        followersList = DatabaseHandler.getAllFollowers(:follower_table, user)
+        followersList = DatabaseHandler.getAllFollowers( user)
         {:reply, followersList, state}
     end
 
@@ -66,12 +59,12 @@ defmodule TwitterServer do
         handles = TweetParser.getAllHandles(tweetText);
         hashtags = TweetParser.getAllHashtags(tweetText);
         tweetId = Map.get(state, :tweetCount) + 1;
-        DatabaseHandler.insertTweet(:tweet_table, :user_tweet_table, tweetId, user, tweetText);
-        Enum.map(handles, fn (handle) -> DatabaseHandler.insertHandleTweet(:handle_table, handle, tweetId) end);
-        Enum.map(hashtags, fn (hashtag) -> DatabaseHandler.insertHashtagTweet(:hashtag_table, hashtag, tweetId) end);
+        DatabaseHandler.insertTweet(tweetId, user, tweetText);
+        Enum.map(handles, fn (handle) -> DatabaseHandler.insertHandleTweet(handle, tweetId) end);
+        Enum.map(hashtags, fn (hashtag) -> DatabaseHandler.insertHashtagTweet(hashtag, tweetId) end);
 
         #send Tweet to Followers
-        followersList = DatabaseHandler.getAllFollowers(:follower_table, user)
+        followersList = DatabaseHandler.getAllFollowers(user)
         # IO.inspect followersList;
         Enum.map(followersList, fn follower -> sendTweetToUser(follower, tweetId, tweetText) end);
         
@@ -85,28 +78,45 @@ defmodule TwitterServer do
     end
 
     def handle_cast({:subscribe_to_user, user, subscribedUser}, state) do
-        DatabaseHandler.addUserToFollowingList(:following_table, user, subscribedUser);
-        DatabaseHandler.addUserToFollowersList(:follower_table, subscribedUser, user);
+        DatabaseHandler.addUserToFollowingList(user, subscribedUser);
+        DatabaseHandler.addUserToFollowersList(subscribedUser, user);
         {:noreply, state}
     end
 
     def handle_cast({:get_all_tweets, c_pid, gen_pid, username, password}, state) do
-        tweetList= DatabaseHandler.getAllTweetsByUser(:user_tweet_table, :tweet_table , username);
+        tweetList= DatabaseHandler.getAllTweetsByUser(username);
         send(c_pid, {:get_all_tweets, gen_pid, tweetList});
         {:noreply, state}
     end
 
     def handle_cast({:retweet, username}, state) do
         [tweetId, tweetText] = DatabaseHandler.getRandomTweet(:tweet_table);
-        followers = DatabaseHandler.getAllFollowers(:follower_table, username);
+        followers = DatabaseHandler.getAllFollowers(username);
         Enum.map(followers, fn follower -> sendTweetToUser(follower, tweetId, tweetText) end);
         {:noreply, state}
     end
 
+    def handle_cast({:get_all_subscribed_users_tweets, username, print_pid}, state) do
+        tweets = DatabaseHandler.getSubscribedUsersTweets(username);
+        send(print_pid, {:query_all_sub_tweets, tweets});
+        {:noreply, state}
+    end
+
+    def handle_cast({:get_tweets_by_hashtag, hashtag, print_pid}, state) do
+        tweets = DatabaseHandler.getAllTweetsByHashtag(hashtag);
+        send(print_pid, {:query_tweets_by_hashtag, hashtag, tweets});
+        {:noreply, state}
+    end
+
+    def handle_cast({:get_tweets_by_handle, handle, print_pid}, state) do
+        tweets = DatabaseHandler.getAllTweetsByHandle(handle);
+        send(print_pid, {:query_tweets_by_handle, handle, tweets});
+        {:noreply, state}
+    end
+
     def sendTweetToUser(user, tweetId, tweetText) do
-        DatabaseHandler.insertTweetInUserTable(:user_tweet_table, user, tweetId);
-        #tweet = DatabaseHandler.getTweetById(tweetId);
-        userPid = DatabaseHandler.getUserPidByName(:user_pid_table, user);
+        DatabaseHandler.insertTweetInUserTable(user, tweetId);
+        userPid = DatabaseHandler.getUserPidByName(user);
         if userPid !== nil do
             send(userPid, {:print_tweet, user, tweetText});
         end

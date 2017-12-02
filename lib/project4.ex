@@ -112,7 +112,7 @@ defmodule TwitterClientSimulator do
     end
   end
 
-  def addTweet(sname, gen_pid, c_pid, tweetText) do
+  def sendTweet(sname, gen_pid, c_pid, tweetText) do
     username = GenServer.call(gen_pid, {:get_username});
     if(username === '') do
       {:not_ok, "User Not Logged In"}
@@ -162,6 +162,35 @@ defmodule TwitterClientSimulator do
     end
   end
 
+  def getAllSubscribedUsersTweets(sname, gen_pid, c_pid) do
+    username = GenServer.call(gen_pid, {:get_username});
+    if(username === '') do
+      {:not_ok, "User Not Logged In"}
+    else
+      GenServer.cast({:Twitter_Server, sname}, {:get_all_subscribed_users_tweets, username, c_pid});
+      {:ok}
+    end
+  end
+
+  def getTweetsByHashtag(sname, gen_pid, c_pid, hashtag) do
+    username = GenServer.call(gen_pid, {:get_username});
+    if(username === '') do
+      {:not_ok, "User Not Logged In"}
+    else
+      GenServer.cast({:Twitter_Server, sname}, {:get_tweets_by_hashtag, hashtag, c_pid});
+      {:ok}
+    end
+  end
+
+  def getTweetsByHandle(sname, gen_pid, c_pid) do
+    username = GenServer.call(gen_pid, {:get_username});
+    if(username === '') do
+      {:not_ok, "User Not Logged In"}
+    else
+      GenServer.cast({:Twitter_Server, sname}, {:get_tweets_by_handle, username, c_pid});
+      {:ok}
+    end
+  end
 
   def testCode(sname, uname, c_pid) do
     {:ok, gen_pid} = ClientState.start_link
@@ -169,42 +198,30 @@ defmodule TwitterClientSimulator do
     register_user(sname, gen_pid, c_pid, uname ,"sis");
     case uname do
       "huz1" ->
-        IO.puts "huz1"
-      #Process.sleep(100);
-      addTweet(sname, gen_pid, c_pid, "Hello, #supposedly");
-      addTweet(sname, gen_pid, c_pid, "Goodbye, #supposedly");
-      
-      subscribeToUser(sname, gen_pid, "huz2");
-      
-      #logout_user(sname, pid);
-      # login_user(sname, c_pid, gen_pid, "huz1", "sis");
-      # addTweet(sname, gen_pid, c_pid, "@huz2 is my friend also okay??!, #supposedlyAgain");
-      # login_user(sname,  c_pid, gen_pid, "huz1", "sis");
-    "huz2" -> 
-      IO.puts "huz2"
+      Process.sleep(10);
+      sendTweet(sname, gen_pid, c_pid, "Yay, @huz2 you rock #supposedly");
+      sendTweet(sname, gen_pid, c_pid, "No, @huz3 you dont rock #supposedly");
+    "huz2" ->
+      sendTweet(sname, gen_pid, c_pid, "Hello, @huz3 #supposedly");
       Process.sleep(1000);
-      #addTweet(sname, pid, "Hello, @huz1 is Hussain");
-      retweetToSubscribers(sname, gen_pid);
+      getTweetsByHandle(sname, gen_pid, c_pid);
     "huz3" ->
-      # logout_user(sname, gen_pid);
-      # Process.sleep(5000)
-      # login_user(sname, c_pid, gen_pid, "huz3","sis");
-      subscribeToUser(sname, gen_pid, "huz2");
+      Process.sleep(10)
+      Process.sleep(1000);
+      getTweetsByHashtag(sname, gen_pid, c_pid, "#supposedly");
+      getTweetsByHandle(sname, gen_pid, c_pid);
     end
-
-    # if uname === "huz1" do
-    #   addTweet(sname, gen_pid, c_pid, "@huz2 is my friend, #supposedly");
-    # else
-    #   Process.sleep(1000);
-    # end
 
   end
 
   def printTweets do
     receive do
-      {:print_tweet, username, tweet} -> IO.puts "** #{username} ** #{tweet}"; 
+      {:print_tweet, username, tweet} -> IO.puts "** #{username} tweeted: ** #{tweet}"; 
       {:get_all_tweets, g_pid, tweetList} -> GenServer.cast(g_pid, {:set_all_tweets, tweetList});
       {:add_tweet,g_pid, tweetId, tweetText} -> GenServer.cast(g_pid, {:set_tweet, {tweetId, tweetText}});
+      {:query_all_sub_tweets, tweets} -> IO.puts "All Subscribers Tweets: "; Enum.map(tweets, fn {tweetId, tweetText} -> IO.puts tweetText end);
+      {:query_tweets_by_hashtag, hashtag, tweets} -> IO.puts "All Tweets containing ##{hashtag}: "; Enum.map(tweets, fn {tweetId, tweetText} -> IO.puts tweetText end);
+      {:query_tweets_by_handle, handle, tweets} -> IO.puts "All Tweets mentioning me: "; Enum.map(tweets, fn {tweetId, tweetText} -> IO.puts tweetText end);
     end
     printTweets
   end
