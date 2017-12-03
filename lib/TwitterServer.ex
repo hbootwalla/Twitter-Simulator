@@ -7,12 +7,9 @@ defmodule TwitterServer do
     end
 
     def start_link do
-        GenServer.start_link(__MODULE__, :ok, name: :Twitter_Server);
+        GenServer.start_link(__MODULE__, :ok, name: __MODULE__);
+        spawn(fn -> printPerformanceMetrics(); end);
     end
-
-    # def registerUser(userDetails) do
-    #     GenServer.call({:add_user, userDetails[:username], userDetails[:password]});
-    # end
 
     def handle_call({:add_user, c_pid, username, password}, _from , state) do
         returnValue = :ets.insert_new(:user_table, {username, password});
@@ -30,6 +27,7 @@ defmodule TwitterServer do
             if(returnedPassword != password) do
                 {:reply, :incorrect_password, state} 
             else
+                IO.puts "#{username} has LOGGED IN";
                 {:reply, :logged_in, state}
             end
         end
@@ -37,13 +35,9 @@ defmodule TwitterServer do
 
     def handle_call({:logout_user, username, password}, _from , state) do
         DatabaseHandler.setUserPidByName(username, nil)
+        IO.puts "#{username} has LOGGED OUT";
         {:reply, true, state}
     end
-
-    # def handle_call({:get_all_tweets, user}, _from, state) do
-    #     tweetList = DatabaseHandler.getAllTweetsByUser(:tweet_table, user);
-    #     {:reply, tweetList, state}
-    # end
 
     def handle_call({:get_all_following, user}, _from ,state) do
         followingList = DatabaseHandler.getAllFollowing(user)
@@ -53,6 +47,16 @@ defmodule TwitterServer do
     def handle_call({:get_all_followers, user}, _from ,state) do
         followersList = DatabaseHandler.getAllFollowers( user)
         {:reply, followersList, state}
+    end
+
+    # def handle_call({:print_metrics, count}, _from, state) do
+    #     printPerformanceMetrics(count);
+    #     {:reply, true, state}
+    # end
+
+    def handle_cast({:return_something}, state) do
+        IO.puts "!!";
+        {:noreply, state}
     end
 
     def handle_cast({:handle_tweet, user, gen_pid, print_pid, tweetText}, state) do
@@ -65,14 +69,12 @@ defmodule TwitterServer do
 
         #send Tweet to Followers
         followersList = DatabaseHandler.getAllFollowers(user)
-        # IO.inspect followersList;
         Enum.map(followersList, fn follower -> sendTweetToUser(follower, tweetId, tweetText) end);
         
         #send Tweet to Mentions
-        # IO.inspect handles;
          Enum.map(handles, fn handle -> sendTweetToUser(handle, tweetId, tweetText) end);
          
-         send(print_pid, {:add_tweet, gen_pid, tweetId, tweetText});
+         send(print_pid, {:add_tweet, tweetId, tweetText});
          {:noreply, Map.put(state, :tweetCount, Map.get(state, :tweetCount) + 1)}
 
     end
@@ -83,13 +85,13 @@ defmodule TwitterServer do
         {:noreply, state}
     end
 
-    def handle_cast({:get_all_tweets, c_pid, gen_pid, username, password}, state) do
+    def handle_cast({:get_all_tweets, c_pid, username, password}, state) do
         tweetList= DatabaseHandler.getAllTweetsByUser(username);
-        send(c_pid, {:get_all_tweets, gen_pid, tweetList});
+        send(c_pid, {:get_all_tweets, tweetList});
         {:noreply, state}
     end
 
-    def handle_cast({:retweet, username}, state) do
+    def handle_cast({:retweet, username, gen_pid}, state) do
         [tweetId, tweetText] = DatabaseHandler.getRandomTweet(:tweet_table);
         followers = DatabaseHandler.getAllFollowers(username);
         Enum.map(followers, fn follower -> sendTweetToUser(follower, tweetId, tweetText) end);
@@ -114,11 +116,46 @@ defmodule TwitterServer do
         {:noreply, state}
     end
 
+    # def handle_cast({:return_something}, state) do
+    #     {:noreply, state}
+    # end
+
+    def printPerformanceMetrics() do
+        count = length(:ets.match(:user_table, {:"_", :"$1"}));
+        list =  Enum.to_list 1..count;
+        user1 = Enum.random(list);
+        user2 = Enum.random(list --[user1]);
+        printDashboard("huz#{user1}");
+        printDashboard("huz#{user2}");
+        Process.sleep(1000);
+        printPerformanceMetrics();
+      end
+
+    def printDashboard(user) do
+        IO.puts "***********************************************";
+        IO.puts "#{user}'s' DASHBOARD: "
+        tweets = DatabaseHandler.getAllTweetsByUser(user);
+        IO.puts "Tweet Count: #{length(tweets)}";
+        #Enum.each(tweets, fn {tId, tText} -> IO.puts tText; end);
+        
+        followers = DatabaseHandler.getAllFollowers(user);
+        IO.puts "Number of Followers: #{length(followers)}";
+        IO.puts "Followers: ";
+        Enum.each(followers, fn follower -> IO.puts follower; end);
+        followings = DatabaseHandler.getAllFollowing(user);
+        IO.puts "Number of Followed User: #{length(followings)}";
+        IO.puts "Followed Users: ";
+        Enum.each(followings, fn following -> IO.puts following; end);
+        IO.puts "***********************************************";
+        IO.puts "";
+      end
+
     def sendTweetToUser(user, tweetId, tweetText) do
         DatabaseHandler.insertTweetInUserTable(user, tweetId);
         userPid = DatabaseHandler.getUserPidByName(user);
         if userPid !== nil do
             send(userPid, {:print_tweet, user, tweetText});
+            send(userPid, {:add_tweet, tweetId, tweetText});
         end
     end
 end 

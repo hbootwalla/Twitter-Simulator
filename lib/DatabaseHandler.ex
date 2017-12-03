@@ -1,14 +1,14 @@
 defmodule DatabaseHandler do
 
     def init() do
-        :ets.new(:user_pid_table, [:set, :protected, :named_table]);
-        :ets.new(:user_tweet_table, [:set, :protected, :named_table]);
-        :ets.new(:user_table, [:set, :protected, :named_table]);
-        :ets.new(:tweet_table, [:set, :protected, :named_table]);
-        :ets.new(:handle_table, [:set, :protected, :named_table]);
-        :ets.new(:hashtag_table, [:set, :protected, :named_table]);
-        :ets.new(:following_table, [:set, :protected, :named_table]);
-        :ets.new(:follower_table, [:set, :protected, :named_table]);
+        :ets.new(:user_pid_table, [:set, :public, :named_table]);
+        :ets.new(:user_tweet_table, [:set, :public, :named_table]);
+        :ets.new(:user_table, [:set, :public, :named_table]);
+        :ets.new(:tweet_table, [:set, :public, :named_table]);
+        :ets.new(:handle_table, [:set, :public, :named_table]);
+        :ets.new(:hashtag_table, [:set, :public, :named_table]);
+        :ets.new(:following_table, [:set, :public, :named_table]);
+        :ets.new(:follower_table, [:set, :public, :named_table]);
     end
 
     def insertTweet(tweetId, user, tweet) do
@@ -56,7 +56,6 @@ defmodule DatabaseHandler do
 
     def getUserPidByName(username) do
         userpid = :ets.lookup(:user_pid_table, username)
-        IO.inspect userpid
         if userpid === [] do
             nil
         else
@@ -93,7 +92,7 @@ defmodule DatabaseHandler do
         end
     end
 
-    def getAllTweetsByHashtag( hashtag) do
+    def getAllTweetsByHashtag(hashtag) do
         list = :ets.lookup(:hashtag_table, hashtag);
         if list === [] do
             []
@@ -108,11 +107,14 @@ defmodule DatabaseHandler do
     def addUserToFollowingList(user, subscribedUser) do
         followings = :ets.lookup(:following_table, user)
         if followings === [] do
+            
             :ets.insert(:following_table, {user, [subscribedUser]})
         else
             [{user, followingList}] = followings
-            followingList = [subscribedUser] ++ followingList;
-            :ets.insert(:following_table, {user, followingList});
+            if Enum.any?(followingList, fn x -> x == subscribedUser end) === false do
+                followingList = [subscribedUser] ++ followingList;
+                :ets.insert(:following_table, {user, followingList});
+            end
         end
     end
 
@@ -121,9 +123,12 @@ defmodule DatabaseHandler do
         if followers === [] do
             :ets.insert(:follower_table, {subscribedUser, [user]})
         else
+            
             [{subscribedUser, followersList}] = followers
-            followersList = [user] ++ followersList;
-            :ets.insert(:follower_table, {subscribedUser, followersList});
+            if Enum.any?(followersList, fn x -> x == user end) === false do
+                followersList = [user] ++ followersList;
+                :ets.insert(:follower_table, {subscribedUser, followersList});
+            end
         end
     end
 
