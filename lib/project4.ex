@@ -1,3 +1,6 @@
+# ClientState GenServer is used to store the tweets, followers and followed users
+# for each simulated client
+
 defmodule ClientState do
   use GenServer
 
@@ -73,31 +76,22 @@ defmodule Project4.CLI do
    
   def main(args \\ []) do
       [choice, count, ipAddr] = args
+      # Choice determines if server(0) should be started or if client simulator(1) should be started
+      # Count determines how many clients should be simulated
+      # ipAddr is the IP Address of the local machine on which the simulator is run
+
       if(choice === "0") do
         Node.start(String.to_atom("twitterServer@#{ipAddr}"));
         Node.set_cookie(String.to_atom("tweet"));
-        TwitterServer.start_link
-        
-      :timer.sleep(:infinity)        
+        TwitterServer.start_link      
       else
         Node.start(String.to_atom("twitterClient@#{ipAddr}"));
         Node.set_cookie(String.to_atom "tweet");
         sname = String.to_atom("twitterServer@#{ipAddr}")
-        IO.inspect Node.connect(sname);
-        IO.inspect sname
+        Node.connect(sname);
         count = String.to_integer count;
         spawn(fn -> ClientSimulator.simulateClients({TwitterServer, sname}, count) end);
-        #Process.sleep(15000);
-        :timer.sleep(:infinity)
-        #spawn(fn->ClientSimulator.printPerformanceMetrics({TwitterServer, sname}, count) end);
-        #Process.sleep(5000);
-        # ClientSimulator.printPerformanceMetrics({TwitterServer, sname}, count);
-        # Process.sleep(2000);
-        # ClientSimulator.printPerformanceMetrics({TwitterServer, sname}, count);
-        #Process.exit(self(), :kill);
       end
-
-      # IO.inspect TweetParser.getAllMentions("@huzinboots says @hb1 is here. @@This should be an error");
-      # IO.inspect TweetParser.getAllHashtags("@huzinboots says @hb1 is here. #CoolLife");
+      :timer.sleep(:infinity)
   end
 end

@@ -284,7 +284,7 @@ defmodule ClientSimulator do
             {user, userPid} = Enum.find(list, {user,nil}, fn val -> {h, _} = val; if h == user do true else false end end);
 
             if userPid !== nil do
-            bodyList = [",come over for the party!,", ",its going to be a long night,", ",give me a break,", ",going for my exam guys,", "damnnnnn, that be scary,"];
+            bodyList = [" come over for the party! ", " its going to be a long night ", " give me a break ", " going for my exam guys ", " damnnnnn, that be scary "];
             body = Enum.random(bodyList);
 
             hashtagNum = Enum.random(1..2);

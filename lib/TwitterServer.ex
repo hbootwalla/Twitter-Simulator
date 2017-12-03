@@ -122,11 +122,16 @@ defmodule TwitterServer do
 
     def printPerformanceMetrics() do
         count = length(:ets.match(:user_table, {:"_", :"$1"}));
+        if count > 0 do
         list =  Enum.to_list 1..count;
         user1 = Enum.random(list);
         user2 = Enum.random(list --[user1]);
         printDashboard("huz#{user1}");
         printDashboard("huz#{user2}");
+        printDashboard("huz1");
+        printDashboard("huz#{count}");
+        printRandomHashtagTweets();
+        end
         Process.sleep(1000);
         printPerformanceMetrics();
       end
@@ -149,6 +154,16 @@ defmodule TwitterServer do
         IO.puts "***********************************************";
         IO.puts "";
       end
+
+    def printRandomHashtagTweets() do
+        hashtags = ["#LiveLife", "#SomethingNeverChanges", "#DieTomorrow", "#SleepWell", "#PLPForever"];
+        ht = Enum.random(hashtags);
+        list = DatabaseHandler.getAllTweetsByHashtag(ht);
+        if list != [] do
+            IO.puts "Three Random Tweets with #{ht}";       
+            Enum.each(1..3, fn i -> {tweetId, text} = Enum.random(list); list = list -- [{tweetId, text}]; IO.puts text; end);
+        end
+    end
 
     def sendTweetToUser(user, tweetId, tweetText) do
         DatabaseHandler.insertTweetInUserTable(user, tweetId);
