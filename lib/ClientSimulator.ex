@@ -137,28 +137,6 @@ defmodule ClientSimulator do
           end
         end
       
-        def testCode(sname, uname, c_pid) do
-          {:ok, gen_pid} = ClientState.start_link
-      
-          register_user(sname, gen_pid, c_pid, uname ,"sis");
-          case uname do
-            "huz1" ->
-            Process.sleep(10);
-            sendTweet(sname, gen_pid, c_pid, "Yay, @huz2 you rock #supposedly");
-            sendTweet(sname, gen_pid, c_pid, "No, @huz3 you dont rock #supposedly");
-          "huz2" ->
-            sendTweet(sname, gen_pid, c_pid, "Hello, @huz3 #supposedly");
-            Process.sleep(1000);
-            getTweetsByHandle(sname, gen_pid, c_pid);
-          "huz3" ->
-            Process.sleep(10)
-            Process.sleep(1000);
-            getTweetsByHashtag(sname, gen_pid, c_pid, "#supposedly");
-            getTweetsByHandle(sname, gen_pid, c_pid);
-          end
-      
-        end
-      
         def receiveMessages(sname, gen_pid) do
           receive do
             #{:print_tweet, username, tweet} -> IO.puts "** #{username} tweeted: ** #{tweet}"; 
@@ -332,7 +310,7 @@ defmodule ClientSimulator do
       end
 
       def simulateOperations(sname, userId, count) do
-          randomInt = String.to_integer(Twitter.RandomLibrary.randomizer(2,:numeric))
+          randomInt = String.to_integer(Twitter.RandomLibrary.randomizer(3,:numeric))
           if(rem(randomInt,2)==0) do tweet(sname, userId, count) end 
           if(rem(randomInt,6)==0) do retweet(sname, userId, count) end 
           if(rem(randomInt,3)==0) do mention(sname, userId, count) end 

@@ -121,18 +121,22 @@ defmodule TwitterServer do
     # end
 
     def printPerformanceMetrics() do
+        Process.sleep(10000);
+        c = length(:ets.match(:tweet_table, {:"_", :"$1"}))
         count = length(:ets.match(:user_table, {:"_", :"$1"}));
-        if count > 0 do
+        if c > 0 do
         list =  Enum.to_list 1..count;
         user1 = Enum.random(list);
         user2 = Enum.random(list --[user1]);
         printDashboard("huz#{user1}");
         printDashboard("huz#{user2}");
-        printDashboard("huz1");
-        printDashboard("huz#{count}");
+        # printDashboard("huz1");
+        # printDashboard("huz#{count}");
         printRandomHashtagTweets();
+
+        # Enum.each(1..count, fn i -> if rem(i,2) == 1 do printDashboard("huz#{i}") end end);
         end
-        Process.sleep(1000);
+        #Process.sleep(1000);
         printPerformanceMetrics();
       end
 
@@ -141,6 +145,7 @@ defmodule TwitterServer do
         IO.puts "#{user}'s' DASHBOARD: "
         tweets = DatabaseHandler.getAllTweetsByUser(user);
         IO.puts "Tweet Count: #{length(tweets)}";
+        
         #Enum.each(tweets, fn {tId, tText} -> IO.puts tText; end);
         
         followers = DatabaseHandler.getAllFollowers(user);
@@ -169,7 +174,7 @@ defmodule TwitterServer do
         DatabaseHandler.insertTweetInUserTable(user, tweetId);
         userPid = DatabaseHandler.getUserPidByName(user);
         if userPid !== nil do
-            send(userPid, {:print_tweet, user, tweetText});
+            #send(userPid, {:print_tweet, user, tweetText});
             send(userPid, {:add_tweet, tweetId, tweetText});
         end
     end
